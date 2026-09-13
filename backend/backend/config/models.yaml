@@ -1,0 +1,33 @@
+# Model / tool registry (backend/config/models.yaml)
+# The agentic controller resolves primary + fallback models per task from
+# this file instead of hardcoding routing decisions throughout the codebase.
+
+vqa:
+  tool: vqa_tool
+  primary: rscovlm_7b_lora
+  fallback: rule_based_raster_analyzer
+  allowed_parameters: [target]
+
+caption:
+  tool: caption_tool
+  primary: rscovlm_7b_lora
+  fallback: rule_based_raster_analyzer
+  allowed_parameters: []
+
+grounding:
+  tool: grounding_tool
+  primary: rscovlm_7b_lora
+  fallback: rule_based_raster_analyzer
+  allowed_parameters: [target]
+
+change_vqa:
+  tool: change_tool
+  primary: qwen3_vl_8b
+  fallback: pixel_change_detector
+  allowed_parameters: [target]
+
+optical_sar:
+  tool: optical_sar_tool
+  primary: croma_rscovlm_fusion
+  fallback: rule_based_fusion
+  allowed_parameters: [target]

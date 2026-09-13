@@ -1,0 +1,18 @@
+# Reference FastAPI backend image (backend/). Optional — the deployed app in
+# this project is the Next.js port; this image is provided so the Python
+# reference architecture can be run standalone with real model weights.
+FROM python:3.11-slim
+
+WORKDIR /srv
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gdal-bin libgdal-dev gcc g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+COPY backend ./backend
+
+EXPOSE 8000
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

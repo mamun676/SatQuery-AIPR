@@ -1,0 +1,810 @@
+@import "tailwindcss";
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SATQUERY AI — instrument design system
+   Surfaces are near-black graphite; a single cyan "signal" family carries
+   system state. Everything technical is monospaced with tabular figures so
+   numbers line up like a real telemetry readout.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  --color-void: #04060b;
+  --color-deep: #070b13;
+  --color-panel: #0a0f19;
+  --color-panel-2: #0c121e;
+  --color-raise: #111a28;
+  --color-line: #1d2836;
+  --color-line-hi: #2b3a4d;
+
+  --color-ink: #e9f1fc;
+  --color-ink-2: #b6c5d9;
+  --color-ink-3: #7c8fa6;
+  --color-ink-4: #55677d;
+
+  --color-signal: #4fe3ff;
+  --color-signal-2: #17a9d4;
+  --color-verified: #4ae3ab;
+  --color-caution: #ffb457;
+  --color-fault: #ff6d7d;
+  --color-violet: #9c8cff;
+
+  --font-sans: "Inter var", "Inter", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif,
+    system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, "SFMono-Regular",
+    "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+
+  --radius-panel: 10px;
+}
+
+:root {
+  color-scheme: dark;
+  --hair: rgba(148, 175, 208, 0.11);
+  --hair-hi: rgba(148, 175, 208, 0.2);
+  --tick: rgba(120, 205, 240, 0.32);
+  --ease: cubic-bezier(0.22, 0.61, 0.24, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --rail-w: 384px;
+}
+
+/* ── base ───────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  background: var(--color-void);
+  color: var(--color-ink-2);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+::selection {
+  background: rgba(79, 227, 255, 0.26);
+  color: #fff;
+}
+
+/* ── app shell ──────────────────────────────────────────────────────────── */
+.sq-app {
+  height: 100dvh;
+  display: grid;
+  grid-template-areas: "bar bar" "stage rail" "dock dock";
+  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  transition: grid-template-columns 460ms var(--ease-out);
+  background:
+    radial-gradient(1100px 520px at 82% -8%, rgba(23, 169, 212, 0.09), transparent 70%),
+    radial-gradient(900px 480px at 6% 104%, rgba(156, 140, 255, 0.07), transparent 72%),
+    var(--color-void);
+}
+.sq-app[data-rail="closed"] {
+  --rail-w: 0px;
+}
+/* Collapsing unmounts the rail in React; this keeps the grid honest either way. */
+.sq-app[data-rail="closed"] .sq-area-rail {
+  display: none;
+}
+.sq-area-bar {
+  grid-area: bar;
+}
+.sq-area-stage {
+  grid-area: stage;
+  min-width: 0;
+  min-height: 0;
+}
+.sq-area-rail {
+  grid-area: rail;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.sq-area-dock {
+  grid-area: dock;
+  min-height: 0;
+}
+@media (max-width: 1099px) {
+  .sq-app {
+    grid-template-areas: "bar" "stage" "rail" "dock";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+  /* The viewport keeps a fixed band so imagery never collapses to a sliver. */
+  .sq-area-stage {
+    height: clamp(240px, 40vh, 460px);
+  }
+  /* The dock reflows to one column here, so it must not be allowed to push the
+     analysis rail out of the fixed-height shell: cap it and scroll inside. */
+  .sq-area-dock {
+    max-height: 52dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* Stacked + collapsed: give the whole middle band back to the viewport. */
+  .sq-app[data-rail="closed"] {
+    grid-template-rows: auto minmax(0, 1fr) 0 auto;
+  }
+  .sq-app[data-rail="closed"] .sq-area-stage {
+    height: auto;
+  }
+}
+@media (max-width: 640px) {
+  .sq-area-stage {
+    height: clamp(200px, 32vh, 320px);
+  }
+  .sq-area-dock {
+    max-height: 56dvh;
+  }
+}
+
+/* ── instrument panels ──────────────────────────────────────────────────── */
+.sq-panel {
+  position: relative;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-panel);
+  background: linear-gradient(180deg, rgba(16, 24, 38, 0.72), rgba(9, 14, 23, 0.84));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.028),
+    0 14px 44px -28px rgba(0, 0, 0, 0.95);
+}
+.sq-panel-quiet {
+  position: relative;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: rgba(10, 16, 26, 0.55);
+}
+
+/* four corner brackets — reads as an instrument bezel rather than a card */
+.sq-tk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick)),
+    linear-gradient(var(--tick), var(--tick)), linear-gradient(var(--tick), var(--tick));
+  background-repeat: no-repeat;
+  background-size: 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px;
+  background-position: left top, left top, right top, right top, left bottom, left bottom,
+    right bottom, right bottom;
+}
+.sq-hair {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hair-hi) 10%, var(--hair-hi) 90%, transparent);
+}
+.sq-vrule {
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--hair-hi) 14%, var(--hair-hi) 86%, transparent);
+}
+
+/* ── typography helpers ─────────────────────────────────────────────────── */
+.sq-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 1.2;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-ink-4);
+}
+.sq-label-hi {
+  color: var(--color-signal);
+}
+.sq-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.sq-mono {
+  font-family: var(--font-mono);
+}
+.sq-wordmark {
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: var(--color-ink);
+}
+
+/* ── backgrounds ────────────────────────────────────────────────────────── */
+.sq-grat {
+  background-image: linear-gradient(rgba(148, 175, 208, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 175, 208, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(148, 175, 208, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 175, 208, 0.07) 1px, transparent 1px);
+  background-size: 26px 26px, 26px 26px, 130px 130px, 130px 130px;
+}
+.sq-vignette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 42%, rgba(2, 4, 8, 0.62) 100%);
+}
+
+/* ── controls ───────────────────────────────────────────────────────────── */
+.sq-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--hair-hi);
+  border-radius: 6px;
+  background: rgba(19, 29, 45, 0.62);
+  color: var(--color-ink-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 180ms var(--ease), border-color 180ms var(--ease), color 180ms var(--ease),
+    transform 180ms var(--ease);
+}
+.sq-btn:hover:not(:disabled) {
+  background: rgba(28, 44, 66, 0.78);
+  border-color: rgba(79, 227, 255, 0.42);
+  color: var(--color-ink);
+}
+.sq-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.sq-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.sq-btn-primary {
+  height: 40px;
+  padding: 0 20px;
+  border-color: transparent;
+  background: linear-gradient(180deg, #6ceaff, #17a9d4);
+  color: #03121b;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  box-shadow: 0 10px 30px -14px rgba(79, 227, 255, 0.75);
+}
+.sq-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #8bf0ff, #24bce8);
+  color: #03121b;
+  border-color: transparent;
+}
+.sq-btn-primary:disabled {
+  background: rgba(24, 36, 54, 0.7);
+  color: var(--color-ink-4);
+  box-shadow: none;
+  opacity: 1;
+  border-color: var(--hair);
+}
+.sq-btn-sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 9.5px;
+}
+.sq-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  background: rgba(12, 18, 30, 0.72);
+  color: var(--color-ink-3);
+  cursor: pointer;
+  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
+}
+.sq-icon-btn:hover:not(:disabled) {
+  color: var(--color-signal);
+  border-color: rgba(79, 227, 255, 0.4);
+  background: rgba(20, 34, 52, 0.85);
+}
+.sq-icon-btn[aria-pressed="true"] {
+  color: var(--color-signal);
+  border-color: rgba(79, 227, 255, 0.5);
+  background: rgba(23, 169, 212, 0.14);
+}
+.sq-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.sq-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--hair-hi);
+  border-radius: 4px;
+  background: rgba(18, 27, 42, 0.7);
+  color: var(--color-ink-3);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sq-chip[data-tone="signal"] {
+  color: var(--color-signal);
+  border-color: rgba(79, 227, 255, 0.34);
+  background: rgba(23, 169, 212, 0.11);
+}
+.sq-chip[data-tone="verified"] {
+  color: var(--color-verified);
+  border-color: rgba(74, 227, 171, 0.32);
+  background: rgba(74, 227, 171, 0.09);
+}
+.sq-chip[data-tone="caution"] {
+  color: var(--color-caution);
+  border-color: rgba(255, 180, 87, 0.32);
+  background: rgba(255, 180, 87, 0.09);
+}
+.sq-chip[data-tone="fault"] {
+  color: var(--color-fault);
+  border-color: rgba(255, 109, 125, 0.34);
+  background: rgba(255, 109, 125, 0.09);
+}
+.sq-chip[data-tone="violet"] {
+  color: var(--color-violet);
+  border-color: rgba(156, 140, 255, 0.32);
+  background: rgba(156, 140, 255, 0.1);
+}
+.sq-input {
+  width: 100%;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: rgba(6, 10, 17, 0.78);
+  color: var(--color-ink);
+  font-size: 13.5px;
+  line-height: 1.55;
+  padding: 9px 12px;
+  resize: none;
+  transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease);
+}
+.sq-input::placeholder {
+  color: var(--color-ink-4);
+}
+.sq-input:focus {
+  outline: none;
+  border-color: rgba(79, 227, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(79, 227, 255, 0.09);
+}
+.sq-select {
+  appearance: none;
+  height: 24px;
+  padding: 0 22px 0 8px;
+  border: 1px solid var(--hair-hi);
+  border-radius: 5px;
+  background-color: rgba(14, 22, 35, 0.9);
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-ink-3) 50%),
+    linear-gradient(135deg, var(--color-ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 12px) 10px, calc(100% - 8px) 10px;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  color: var(--color-ink-2);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.sq-select:focus {
+  outline: none;
+  border-color: rgba(79, 227, 255, 0.55);
+}
+.sq-range {
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: #223046;
+  cursor: pointer;
+}
+.sq-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-signal);
+  border: 2px solid #061019;
+  box-shadow: 0 0 0 1px rgba(79, 227, 255, 0.45);
+}
+.sq-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #061019;
+  border-radius: 50%;
+  background: var(--color-signal);
+}
+.sq-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 6px 6px 0 0;
+  color: var(--color-ink-4);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  transition: color 160ms var(--ease);
+}
+.sq-tab:hover:not(:disabled) {
+  color: var(--color-ink-2);
+}
+.sq-tab:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+.sq-tab[aria-selected="true"] {
+  color: var(--color-signal);
+}
+.sq-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-signal), transparent);
+  box-shadow: 0 0 10px rgba(79, 227, 255, 0.7);
+}
+.sq-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #223046 transparent;
+}
+.sq-scroll::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.sq-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sq-scroll::-webkit-scrollbar-thumb {
+  background: #1d2a3b;
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+.sq-scroll::-webkit-scrollbar-thumb:hover {
+  background: #2c405a;
+  background-clip: content-box;
+}
+
+/* ══ motion ═══════════════════════════════════════════════════════════════
+   Every animation below is tied to a state the system actually reports:
+   reveals fire once when data arrives, the sweep runs only while a job is in
+   flight, and the pipeline spine draws as trace events are rendered.
+   ════════════════════════════════════════════════════════════════════════ */
+.sq-rv {
+  opacity: 0;
+  transform: translateY(9px);
+  animation: sq-rv 480ms var(--ease-out) forwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes sq-rv {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.sq-rv-x {
+  opacity: 0;
+  transform: translateX(14px);
+  animation: sq-rv-x 520ms var(--ease-out) forwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes sq-rv-x {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.sq-rv-scale {
+  opacity: 0;
+  transform: scale(0.97);
+  animation: sq-rv-scale 520ms var(--ease-out) forwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes sq-rv-scale {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.sq-draw {
+  stroke-dasharray: var(--len, 500);
+  stroke-dashoffset: var(--len, 500);
+  animation: sq-draw 1200ms var(--ease-out) forwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes sq-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.sq-flow {
+  stroke-dasharray: 2 10;
+  animation: sq-flow 1.5s linear infinite;
+}
+@keyframes sq-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+.sq-breathe {
+  animation: sq-breathe 2.6s ease-in-out infinite;
+}
+@keyframes sq-breathe {
+  0%,
+  100% {
+    opacity: 0.32;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.sq-rot {
+  animation: sq-rot 900ms linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes sq-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.sq-orbit {
+  transform-origin: 50% 50%;
+  animation: sq-rot var(--sp, 26s) linear infinite;
+}
+.sq-ping {
+  animation: sq-ping 2.2s var(--ease-out) infinite;
+}
+@keyframes sq-ping {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  70%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.sq-armed {
+  animation: sq-armed 2.8s ease-in-out infinite;
+}
+@keyframes sq-armed {
+  0%,
+  100% {
+    box-shadow: 0 10px 30px -14px rgba(79, 227, 255, 0.75), 0 0 0 0 rgba(79, 227, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 10px 30px -14px rgba(79, 227, 255, 0.75), 0 0 0 4px rgba(79, 227, 255, 0);
+  }
+}
+
+/* analysis sweep — mounted only while a job is actually in flight */
+.sq-sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 400;
+}
+.sq-sweep::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 34%;
+  top: -34%;
+  background: linear-gradient(180deg, transparent, rgba(79, 227, 255, 0.05) 62%, rgba(79, 227, 255, 0.13));
+  animation: sq-sweep-band 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.sq-sweep::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(150, 244, 255, 0.95), transparent);
+  box-shadow: 0 0 16px rgba(79, 227, 255, 0.75);
+  animation: sq-sweep-line 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes sq-sweep-band {
+  0% {
+    top: -34%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+@keyframes sq-sweep-line {
+  0% {
+    top: 0;
+  }
+  100% {
+    top: 100%;
+  }
+}
+.sq-sheet {
+  transform: translateY(101%);
+  transition: transform 440ms var(--ease-out);
+}
+.sq-sheet[data-open="true"] {
+  transform: none;
+}
+
+/* ── leaflet: dark cartographic treatment ───────────────────────────────── */
+.leaflet-container {
+  background: #05080e;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  outline: none;
+}
+.leaflet-container a {
+  color: var(--color-ink-3);
+}
+.sq-basemap-dim {
+  filter: saturate(0.5) brightness(0.76) contrast(1.08);
+}
+.leaflet-control-attribution {
+  background: rgba(4, 8, 14, 0.74) !important;
+  color: var(--color-ink-4) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 8.5px !important;
+  padding: 2px 6px !important;
+  border-top-left-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+.leaflet-bar {
+  border: 1px solid var(--hair-hi) !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+.leaflet-bar a {
+  background: rgba(9, 15, 25, 0.92) !important;
+  color: var(--color-ink-2) !important;
+  border-bottom: 1px solid var(--hair) !important;
+  width: 26px !important;
+  height: 26px !important;
+  line-height: 26px !important;
+  font-size: 15px !important;
+}
+.leaflet-bar a:hover {
+  background: rgba(26, 42, 62, 0.95) !important;
+  color: #fff !important;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #0c121e;
+  color: var(--color-ink);
+  border: 1px solid var(--hair-hi);
+  box-shadow: 0 20px 56px -22px #000;
+  border-radius: 8px;
+}
+.leaflet-popup-content {
+  margin: 9px 12px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+.leaflet-popup-close-button {
+  color: var(--color-ink-4) !important;
+}
+.leaflet-tooltip {
+  background: #0c121e;
+  border: 1px solid var(--hair-hi);
+  color: var(--color-ink);
+  box-shadow: none;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  border-radius: 4px;
+}
+.leaflet-tooltip-top::before {
+  border-top-color: var(--hair-hi);
+}
+.sq-evi-active {
+  animation: sq-evi 1.7s ease-in-out infinite;
+}
+@keyframes sq-evi {
+  0%,
+  100% {
+    stroke-opacity: 1;
+  }
+  50% {
+    stroke-opacity: 0.35;
+  }
+}
+
+/* ── reduced motion: hold every final state, remove every loop ───────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .sq-rv,
+  .sq-rv-x,
+  .sq-rv-scale {
+    opacity: 1;
+    transform: none;
+  }
+  .sq-draw {
+    stroke-dashoffset: 0;
+  }
+  .sq-breathe,
+  .sq-ping,
+  .sq-flow,
+  .sq-armed,
+  .sq-evi-active {
+    animation: none !important;
+    opacity: 1;
+  }
+  .sq-sweep::before,
+  .sq-sweep::after {
+    display: none;
+  }
+  .sq-sweep {
+    border: 1px solid rgba(79, 227, 255, 0.4);
+    border-radius: inherit;
+  }
+}
+
+/* ── print: the analysis rail is the report ─────────────────────────────── */
+@media print {
+  .sq-app {
+    height: auto;
+    display: block;
+    background: #fff;
+  }
+  .sq-noprint {
+    display: none !important;
+  }
+}
