@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 // Model wrappers (backend/models/rscovlm.py, croma.py, qwen3_vl.py).
 //
 // INTEGRATION BOUNDARY: this sandbox has no GPU and no pretrained
@@ -26,22 +28,41 @@ function unavailableWeights(modelName: string): { available: boolean; reason: st
 }
 
 export const RSCoVLM: ModelWrapper = {
-  name: "RSCoVLM-7B-LoRA",
+  name: "RSCoVLM-7B",
   role: "single-image VQA / captioning / grounding",
-  async load() {
-    /* no-op: real implementation would load LoRA-adapted weights here,
-       see training/lora_adapter/train.py for the adapter training pipeline */
-  },
+  async load() {},
   async healthCheck() {
-    if (process.env.RSCOVLM_ENDPOINT) {
-      return { available: true };
+    const endpoint = process.env.RSCOVLM_ENDPOINT?.replace(/\/+$/, "");
+    if (!endpoint) return unavailableWeights("RSCoVLM-7B");
+    try {
+      const response = await fetch(`${endpoint}/health`, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) return { available: false, reason: `RSCoVLM health returned HTTP ${response.status}.` };
+      const data = (await response.json()) as { model_loaded?: boolean; gpu?: boolean };
+      if (data.model_loaded && data.gpu) return { available: true };
+      return { available: false, reason: "RSCoVLM endpoint is reachable but the model/GPU is not ready." };
+    } catch (error) {
+      return { available: false, reason: `RSCoVLM endpoint unavailable: ${error instanceof Error ? error.message : String(error)}` };
     }
-    return unavailableWeights("RSCoVLM-7B");
   },
   metadata() {
-    return { params: "7B", adapter: "LoRA (PEFT)", trainedOn: "BigEarthNet subset (see training/lora_adapter)" };
+    return { params: "7B", inference: "remote EC2 NVIDIA A10G", endpoint: process.env.RSCOVLM_ENDPOINT ?? null };
   },
 };
+
+export async function predictRsCoVLM(imagePath: string, question: string, task: string) {
+  const endpoint = process.env.RSCOVLM_ENDPOINT?.replace(/\/+$/, "");
+  if (!endpoint) throw new Error("RSCOVLM_ENDPOINT is not configured.");
+  const image = (await readFile(imagePath)).toString("base64");
+  const response = await fetch(`${endpoint}/predict`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ image, filename: imagePath.split("/").pop() ?? "image", question, task }),
+    signal: AbortSignal.timeout(10 * 60 * 1000),
+  });
+  if (!response.ok) throw new Error(`RSCoVLM prediction failed with HTTP ${response.status}: ${await response.text()}`);
+  const data = (await response.json()) as { answer?: string; model?: string; facts?: unknown[] };
+  return { answer: data.answer ?? "", model: data.model ?? "RSCoVLM-7B", facts: data.facts ?? [] };
+}
 
 export const CROMA: ModelWrapper = {
   name: "CROMA",
