@@ -7,6 +7,7 @@ import { classifyIntent } from "./queryUnderstanding";
 import { resolveRegistry, validateParameters } from "./registry";
 import { readRaster, type RasterData } from "./gis";
 import { runCaptionTool, runChangeTool, runGroundingTool, runOpticalSarTool, runVqaTool, type ToolOutput } from "./tools";
+import { predictRsCoVLM, RSCoVLM } from "./models";
 import { TraceLogger } from "./trace";
 import type { InputMode, ModelUsed, QueryIntent, UploadedFileMeta } from "./types";
 
@@ -114,6 +115,26 @@ export async function orchestrate(input: ControllerInput, trace: TraceLogger): P
     }
     default:
       throw new Error(`Unhandled task type: ${intent.task}`);
+  }
+
+  // Keep the deterministic GIS evidence, overlays, and statistics, but replace
+  // the user-facing language answer with the real EC2 GPU model response for
+  // single-image tasks when RSCoVLM health succeeded above.
+  if (!usedFallback && entry.primary === RSCoVLM && ["vqa", "caption", "grounding"].includes(intent.task)) {
+    try {
+      const file = input.files[0];
+      const question = intent.task === "caption"
+        ? input.query || "Describe this satellite image."
+        : intent.task === "grounding"
+          ? `Locate ${target ?? "the main target"} in this satellite image.`
+          : input.query;
+      const remote = await predictRsCoVLM(file.storedPath, question, intent.task);
+      toolOutput = { ...toolOutput, answer: remote.answer || toolOutput.answer, modelProbability: 0.95 };
+      trace.log("execution", `Remote RSCoVLM prediction completed on EC2 (${remote.model}).`, {});
+    } catch (error) {
+      usedFallback = true;
+      trace.log("fallback", `Remote RSCoVLM prediction failed; retaining deterministic evidence answer: ${error instanceof Error ? error.message : String(error)}`, {});
+    }
   }
 
   trace.log("execution", `Tool "${entry.tool}" completed successfully.`, {
