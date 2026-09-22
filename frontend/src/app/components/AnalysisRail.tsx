@@ -77,16 +77,30 @@ export default function AnalysisRail({
 
   if (!result) {
     return (
-      <div className="flex h-full flex-col items-stretch justify-center px-3">
-        <Unavailable
-          icon="gauge"
-          title={running ? "Analysis in progress" : "No analysis yet"}
-          body={
-            running
-              ? "The finding, confidence breakdown, evidence and trace appear here the moment the backend returns them. Nothing is drawn before that."
-              : "Stage imagery, ask a question, and the finding with its confidence breakdown, measured evidence, model provenance and execution trace will be assembled here."
-          }
-        />
+      <div className="flex h-full flex-col items-center justify-center gap-5 px-5 py-8">
+        <div className="relative flex items-center justify-center">
+          <div className="absolute h-20 w-20 rounded-full" style={{background:"radial-gradient(circle,rgba(79,227,255,0.12) 0%,transparent 70%)"}}/>
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--hair-hi)]" style={{background:"linear-gradient(135deg,rgba(79,227,255,0.08),rgba(156,140,255,0.05))",boxShadow:"0 0 28px rgba(79,227,255,0.08)"}}>
+            <Icon name={running ? "trace" : "gauge"} size={26} className="text-[var(--color-signal)]"/>
+          </div>
+        </div>
+        <div className="text-center">
+          <h3 className="text-[14px] font-semibold text-[var(--color-ink)]">{running ? "Analysis in progress" : "No analysis yet"}</h3>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--color-ink-4)]">{running ? "RSCoVLM is processing your imagery — results appear the moment the backend responds." : "Upload a satellite image, ask a question, and SatQuery AI will return a full intelligence report."}</p>
+        </div>
+        {!running && (
+          <div className="w-full rounded-lg border border-[var(--hair)] bg-[var(--color-panel-2)] px-3 py-2.5">
+            <p className="mb-2 text-[9px] uppercase tracking-[0.12em] text-[var(--color-ink-4)]">What you'll get</p>
+            <ul className="flex flex-col gap-1.5">
+              {[{icon:"spark",text:"Natural language finding + confidence"},{icon:"grid",text:"GIS measurements & spatial overlay"},{icon:"model",text:"Model provenance & execution trace"},{icon:"gauge",text:"Full confidence decomposition"}].map(item=>(
+                <li key={item.text} className="flex items-center gap-2">
+                  <Icon name={item.icon as any} size={11} className="shrink-0 text-[var(--color-signal)] opacity-70"/>
+                  <span className="text-[10.5px] text-[var(--color-ink-3)]">{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     );
   }

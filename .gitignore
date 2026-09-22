@@ -1,3 +1,8 @@
 frontend/.env.local
 frontend/.next
 frontend/node_modules
+
+backend/backend/.venv/
+backend/backend/uploads/
+backend/backend/__pycache__/
+backend/backend/models/__pycache__/

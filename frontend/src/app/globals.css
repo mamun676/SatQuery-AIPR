@@ -102,7 +102,7 @@ p {
 .sq-app {
   height: 100dvh;
   display: grid;
-  grid-template-areas: "bar bar" "stage rail" "dock dock";
+  grid-template-areas: "bar bar" "stage rail" "dock rail";
   grid-template-columns: minmax(0, 1fr) var(--rail-w);
   grid-template-rows: auto minmax(0, 1fr) auto;
   transition: grid-template-columns 460ms var(--ease-out);

@@ -33,7 +33,7 @@ class RSCoVLMWrapper:
         try:
             response = requests.get(
                 f"{self.endpoint}/health",
-                timeout=10,
+                timeout=30,
             )
             response.raise_for_status()
 

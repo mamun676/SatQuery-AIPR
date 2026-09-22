@@ -1,5 +1,5 @@
 "use client";
-// ═════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
 // Command dock — the bottom band.
 //
 // Laid out as a ground-station console rather than a chat panel: ingest slots
@@ -12,7 +12,7 @@
 // Everything on the right-hand side is the server's own /api/upload response.
 // Before an upload exists, nothing is asserted about the staged files beyond
 // what the browser can read from them.
-// ═════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
 import type { UploadOutcome } from "@/lib/api";
 import { API_BASE_LABEL } from "@/lib/api";
@@ -78,7 +78,8 @@ export default function CommandConsole({
   return (
     <div className="border-t border-[var(--hair-hi)] bg-[color-mix(in_oklab,var(--color-panel)_72%,transparent)] backdrop-blur">
       <div className="sq-hair" aria-hidden />
-      <div className="grid gap-x-4 gap-y-3 px-3 py-3 lg:grid-cols-[minmax(300px,26rem)_minmax(0,1fr)] xl:grid-cols-[minmax(320px,28rem)_minmax(0,1fr)_minmax(220px,17rem)]">
+      {/* ── LAYOUT CHANGE: 2-column only (imagery ingest | query console) ── */}
+      <div className="grid gap-x-4 gap-y-3 px-3 py-3 grid-cols-[minmax(260px,20rem)_minmax(0,1fr)]">
         <div className="min-w-0">
           <UploadZone
             pending={pending}
@@ -102,87 +103,6 @@ export default function CommandConsole({
             mode={mode}
             hasResult={hasResult}
           />
-        </div>
-
-        <div className="min-w-0 xl:border-l xl:border-[var(--hair)] xl:pl-4">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="sq-label-hi">Input validation</span>
-            {validation && (
-              <button
-                type="button"
-                className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-ink-4)] transition-colors hover:text-[var(--color-signal)]"
-                onClick={() => setDetailOpen(true)}
-              >
-                report{issueCount > 0 ? ` · ${issueCount}` : ""}
-              </button>
-            )}
-          </div>
-
-          {!validation ? (
-            <p className="mt-1.5 text-[11px] leading-snug text-[var(--color-ink-4)]">
-              {pending.length === 0
-                ? "Awaiting imagery. The server validates rasters on upload and returns the verdict here."
-                : uploadStale && upload !== null
-                  ? "The staged selection changed. It will be re-uploaded and re-validated on the next run."
-                  : "Not yet uploaded — the verdict below is the server's, so it appears after the first run."}
-            </p>
-          ) : (
-            <div className="mt-1.5">
-              <div className="flex items-center gap-2">
-                <Chip
-                  tone={validation.valid ? "verified" : "fault"}
-                  icon={validation.valid ? "check" : "fault"}
-                >
-                  {validation.valid ? "Accepted" : "Rejected"}
-                </Chip>
-                <span className="sq-num text-[10.5px] text-[var(--color-ink-3)]">
-                  score {validation.validationScore.toFixed(2)}
-                </span>
-              </div>
-              <div className="mt-1.5">
-                <Meter
-                  value={validation.validationScore}
-                  tone={validation.validationScore >= 0.9 ? "verified" : validation.validationScore >= 0.6 ? "caution" : "fault"}
-                  label="Validation score"
-                  height={4}
-                />
-              </div>
-              <dl className="sq-mono mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-[var(--color-ink-4)]">
-                <div className="flex justify-between gap-1">
-                  <dt>mode</dt>
-                  <dd className="text-[var(--color-ink-2)]">{validation.mode ?? "—"}</dd>
-                </div>
-                <div className="flex justify-between gap-1">
-                  <dt>files</dt>
-                  <dd className="text-[var(--color-ink-2)]">{validation.files}</dd>
-                </div>
-                <div className="flex justify-between gap-1">
-                  <dt>format</dt>
-                  <dd className="text-[var(--color-ink-2)]">{validation.format ?? "—"}</dd>
-                </div>
-                <div className="flex justify-between gap-1">
-                  <dt>crs</dt>
-                  <dd className="truncate text-[var(--color-ink-2)]" title={validation.crs ?? undefined}>
-                    {shortCrs(validation.crs) ?? "none"}
-                  </dd>
-                </div>
-              </dl>
-              {validation.errors.length > 0 && (
-                <p className="mt-1.5 line-clamp-2 text-[10.5px] leading-snug text-[var(--color-fault)]">
-                  {validation.errors[0]}
-                </p>
-              )}
-              {validation.errors.length === 0 && warnings.length > 0 && (
-                <p className="mt-1.5 line-clamp-2 text-[10.5px] leading-snug text-[var(--color-caution)]">
-                  {warnings[0]}
-                </p>
-              )}
-            </div>
-          )}
-
-          <p className="sq-mono mt-2 hidden text-[9.5px] text-[var(--color-ink-4)] xl:block">
-            {API_BASE_LABEL}
-          </p>
         </div>
       </div>
 
