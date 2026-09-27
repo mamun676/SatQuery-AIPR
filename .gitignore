@@ -6,3 +6,6 @@ backend/backend/.venv/
 backend/backend/uploads/
 backend/backend/__pycache__/
 backend/backend/models/__pycache__/
+
+**/__pycache__/
+*.py[cod]

@@ -5,6 +5,7 @@
 // GIS + evidence layers. If an optional LLM polishing pass introduces any
 // numeric value that cannot be matched back to the evidence, its output is
 // discarded and the deterministic grounded template is used instead.
+import { synthesizeWithQwen } from "./models";
 import type { ConfidenceBreakdown, EvidenceFact } from "./types";
 
 function extractNumbers(text: string): number[] {
@@ -12,21 +13,42 @@ function extractNumbers(text: string): number[] {
   return matches.map(Number);
 }
 
-function numbersAreGrounded(candidateNumbers: number[], groundedNumbers: number[], tolerance = 0.05): boolean {
+function numbersAreGrounded(
+  candidateNumbers: number[],
+  groundedNumbers: number[],
+  tolerance = 0.05,
+): boolean {
   for (const n of candidateNumbers) {
-    const ok = groundedNumbers.some((g) => Math.abs(g - n) <= Math.max(tolerance, Math.abs(g) * 0.02));
+    const ok = groundedNumbers.some(
+      (g) => Math.abs(g - n) <= Math.max(tolerance, Math.abs(g) * 0.02),
+    );
     if (!ok) return false;
   }
   return true;
 }
 
-async function llmPolish(query: string, groundedAnswer: string, facts: EvidenceFact[]): Promise<string | null> {
+async function llmPolish(
+  query: string,
+  groundedAnswer: string,
+  facts: EvidenceFact[],
+): Promise<string | null> {
+  if (process.env.QWEN_MANAGER_ENDPOINT) {
+    try {
+      return await synthesizeWithQwen(query, groundedAnswer, facts);
+    } catch {
+      // Preserve the grounded deterministic answer if local synthesis fails.
+    }
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
         temperature: 0.2,
@@ -62,7 +84,11 @@ export async function synthesizeAnswer(
 ): Promise<string> {
   const groundedNumbers = [
     ...extractNumbers(groundedAnswer),
-    ...facts.flatMap((f) => (typeof f.value === "number" ? [f.value] : extractNumbers(String(f.value ?? "")))),
+    ...facts.flatMap((f) =>
+      typeof f.value === "number"
+        ? [f.value]
+        : extractNumbers(String(f.value ?? "")),
+    ),
   ];
 
   let finalAnswer = groundedAnswer;

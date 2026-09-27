@@ -9,7 +9,7 @@ trace) is realized in **two parallel implementations** in this repository.
 
 The platform this project is built on provisions a single Next.js fullstack
 app with a managed PostgreSQL instance — there is no way to also run a
-long-lived separate Python/FastAPI process as the *managed* production
+long-lived separate Python/FastAPI process as the _managed_ production
 service here. To still deliver a genuinely working, end-to-end SatQuery AI
 system, the entire pipeline was implemented natively in TypeScript under
 `src/server/satquery/`, wired to Next.js Route Handlers under `src/app/api/`,
@@ -19,21 +19,21 @@ interact with in the preview.
 
 Module map (Next.js) -> architecture stage:
 
-| Stage                     | File                                        |
-|---------------------------|----------------------------------------------|
-| Input validator           | `src/server/satquery/validator.ts`           |
-| Query understanding       | `src/server/satquery/queryUnderstanding.ts`  |
-| Agentic controller        | `src/server/satquery/controller.ts`          |
-| Model/tool registry       | `src/server/satquery/registry.ts`            |
-| Model wrappers            | `src/server/satquery/models.ts`              |
-| Specialist tools          | `src/server/satquery/tools.ts`               |
-| GIS / spatial processing  | `src/server/satquery/gis.ts`                 |
-| Evidence + confidence     | `src/server/satquery/evidence.ts`            |
-| LLM synthesis             | `src/server/satquery/synthesis.ts`           |
-| Execution trace           | `src/server/satquery/trace.ts`               |
-| Report generation         | `src/server/satquery/report.ts`              |
-| Storage abstraction       | `src/server/satquery/storage.ts`             |
-| Pipeline glue / DB persist| `src/server/satquery/pipeline.ts`            |
+| Stage                      | File                                        |
+| -------------------------- | ------------------------------------------- |
+| Input validator            | `src/server/satquery/validator.ts`          |
+| Query understanding        | `src/server/satquery/queryUnderstanding.ts` |
+| Agentic controller         | `src/server/satquery/controller.ts`         |
+| Model/tool registry        | `src/server/satquery/registry.ts`           |
+| Model wrappers             | `src/server/satquery/models.ts`             |
+| Specialist tools           | `src/server/satquery/tools.ts`              |
+| GIS / spatial processing   | `src/server/satquery/gis.ts`                |
+| Evidence + confidence      | `src/server/satquery/evidence.ts`           |
+| LLM synthesis              | `src/server/satquery/synthesis.ts`          |
+| Execution trace            | `src/server/satquery/trace.ts`              |
+| Report generation          | `src/server/satquery/report.ts`             |
+| Storage abstraction        | `src/server/satquery/storage.ts`            |
+| Pipeline glue / DB persist | `src/server/satquery/pipeline.ts`           |
 
 ## 2. The reference Python backend: `backend/`
 
@@ -74,10 +74,8 @@ still producing real, GIS-grounded answers from actual uploaded raster data.
 
 ## Where to plug in real models
 
-- `RSCOVLM_ENDPOINT` / `CROMA_ENDPOINT` / `QWEN3VL_ENDPOINT` env vars — point
-  these at a self-hosted inference server and `models.ts` (`healthCheck`)
-  will report the model available; wire the actual request/response mapping
-  in each wrapper's `predict()`.
+- `RSCOVLM_ENDPOINT` / `TERRAMIND_ENDPOINT` point at the persistent local specialist services.
+- `QWEN_MANAGER_ENDPOINT` points at the local-only manager in `deploy/qwen-manager`. It runs Qwen3-4B on CPU for planning/synthesis and performs a serialized, recoverable GPU swap for Qwen3-VL bi-temporal interpretation. Deterministic routing and GIS evidence remain authoritative.
 - `OPENAI_API_KEY` — optional, only used for (a) ambiguous query-intent
   classification and (b) natural-language polishing of the grounded answer.
   Both paths are guarded so no unverified numeric claim can enter the final
