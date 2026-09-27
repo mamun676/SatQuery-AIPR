@@ -12,7 +12,7 @@ from typing import Optional
 import yaml
 
 from backend.models.rscovlm import RSCoVLMWrapper
-from backend.models.croma import CROMAWrapper
+from backend.models.croma import TerraMindOpticalSarWrapper
 from backend.models.qwen3_vl import Qwen3VLWrapper
 
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "models.yaml")
@@ -21,7 +21,7 @@ _MODEL_CLASSES = {
     "rscovlm_7b_lora": RSCoVLMWrapper,
     "qwen2_5_vl_7b": None,  # external hosted fallback — integration point
     "qwen3_vl_8b": Qwen3VLWrapper,
-    "croma_rscovlm_fusion": CROMAWrapper,
+    "terramind_v1_optical_sar": TerraMindOpticalSarWrapper,
     "rule_based_fusion": None,  # implemented directly in tools/optical_sar_tool.py
     "pixel_change_detector": None,  # implemented directly in tools/change_tool.py
     "rule_based_raster_analyzer": None,  # implemented directly in tools/*.py fallbacks

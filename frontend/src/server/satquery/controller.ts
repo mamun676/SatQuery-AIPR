@@ -18,9 +18,11 @@ import {
   predictQwenChange,
   predictRsCoVLM,
   predictTerraMind,
+  predictTerraMindOpticalSar,
   Qwen3VL,
   RSCoVLM,
   TerraMind,
+  TerraMindOpticalSar,
 } from "./models";
 import { TraceLogger } from "./trace";
 import type {
@@ -206,6 +208,109 @@ export async function orchestrate(
     }
     default:
       throw new Error(`Unhandled task type: ${intent.task}`);
+  }
+
+  // For Optical+SAR, the deterministic GIS tool remains authoritative for
+  // every numeric claim. TerraMind adds a native multimodal LULC mask and
+  // provenance; it never replaces the co-registration or quantitative checks.
+  if (
+    !usedFallback &&
+    entry.primary === TerraMindOpticalSar &&
+    intent.task === "optical_sar"
+  ) {
+    const opticalFile =
+      fileByRole(input.files, ["optical"]) ??
+      input.files.find((file) => file.modality !== "sar") ??
+      input.files[0];
+    const sarFile =
+      fileByRole(input.files, ["sar"]) ??
+      input.files.find((file) => file.modality === "sar") ??
+      input.files[1];
+    try {
+      const remote = await predictTerraMindOpticalSar(
+        opticalFile.storedPath,
+        sarFile.storedPath,
+      );
+      toolOutput = {
+        ...toolOutput,
+        answer:
+          `TerraMind native Optical+Sentinel-1 GRD inference produced a provisional multimodal LULC mask. ` +
+          `Deterministic GIS evidence: ${toolOutput.answer}`,
+        facts: [
+          ...toolOutput.facts,
+          {
+            fact: "terramind_optical_sar_mask_generated",
+            value: true,
+            extra: {
+              provisional: remote.maskIsProvisional,
+              input_modalities: remote.inputModalities,
+              output_shape: remote.outputShape,
+              fusion: remote.fusion,
+            },
+          },
+          {
+            fact: "terramind_sar_bands",
+            value: "VV,VH",
+          },
+        ],
+        statistics: {
+          ...toolOutput.statistics,
+          terraMindOpticalSar: {
+            inputModalities: remote.inputModalities,
+            inputShapes: remote.inputShapes,
+            outputShape: remote.outputShape,
+            outputMin: remote.outputMin,
+            outputMax: remote.outputMax,
+            outputMean: remote.outputMean,
+            classHistogram: remote.classHistogram,
+            maskIsProvisional: remote.maskIsProvisional,
+            fusion: remote.fusion,
+            optical: remote.opticalMetadata,
+            sar: remote.sarMetadata,
+          },
+        },
+        previewPngs: [
+          ...toolOutput.previewPngs,
+          {
+            name: "terramind_optical_sar_lulc_mask.png",
+            buffer: remote.maskPng,
+          },
+        ],
+      };
+      trace.log(
+        "execution",
+        `TerraMind native Optical+SAR inference completed (${remote.model}).`,
+        {
+          inputModalities: remote.inputModalities,
+          outputShape: remote.outputShape,
+          maskIsProvisional: remote.maskIsProvisional,
+        },
+      );
+    } catch (error) {
+      usedFallback = true;
+      const reason = `TerraMind Optical+SAR prediction failed: ${error instanceof Error ? error.message : String(error)}`;
+      const primary = modelsUsed.find(
+        (model) =>
+          model.name === TerraMindOpticalSar.name &&
+          model.role === TerraMindOpticalSar.role,
+      );
+      if (primary) {
+        primary.status = "unavailable";
+        primary.reason = reason;
+      }
+      if (entry.fallback) {
+        modelsUsed.push({
+          name: entry.fallback.name,
+          role: entry.fallback.role,
+          status: "fallback_used",
+        });
+      }
+      trace.log(
+        "fallback",
+        `${reason}; retaining deterministic Optical+SAR GIS evidence.`,
+        {},
+      );
+    }
   }
 
   // The GIS change tool always runs first and remains the source of every

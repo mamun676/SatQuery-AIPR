@@ -41,7 +41,7 @@ Module map (Next.js) -> architecture stage:
 exact same architecture, file-for-file matching the specification (validator/,
 query_understanding/, agent/, tools/, models/, gis/, evidence/, synthesis/,
 output/, config/). It is meant to be run on your own infrastructure once real
-GPU-backed model weights (RSCoVLM-7B, CROMA, Qwen3-VL) are available — see
+GPU-backed model weights (RSCoVLM-7B, TerraMind, Qwen3-VL) are available — see
 `docker/Dockerfile.backend` and `docker/docker-compose.yml` (`reference-backend`
 profile). It is **not** executed by this sandbox's build/start pipeline.
 
@@ -58,7 +58,7 @@ are provided:
   against real GeoTIFF/PNG/JPEG uploads.
 - `backend/` is the **structural reference** matching the requested Python
   architecture 1:1, ready to be pointed at real model-serving endpoints
-  (`RSCOVLM_ENDPOINT`, `CROMA_ENDPOINT`, `QWEN3VL_ENDPOINT`) and a real
+  (`RSCOVLM_ENDPOINT`, `TERRAMIND_ENDPOINT`, `QWEN_MANAGER_ENDPOINT`) and a real
   BigEarthNet/VRSBench/RSVQA/CDVQA dataset mirror.
 
 ## Model availability rule
@@ -74,7 +74,7 @@ still producing real, GIS-grounded answers from actual uploaded raster data.
 
 ## Where to plug in real models
 
-- `RSCOVLM_ENDPOINT` / `TERRAMIND_ENDPOINT` point at the persistent local specialist services.
+- `RSCOVLM_ENDPOINT` points at the single-image language specialist. `TERRAMIND_ENDPOINT` points at the versioned service in `deploy/terramind-server`, including native Optical + Sentinel-1 GRD inference.
 - `QWEN_MANAGER_ENDPOINT` points at the local-only manager in `deploy/qwen-manager`. It runs Qwen3-4B on CPU for planning/synthesis and performs a serialized, recoverable GPU swap for Qwen3-VL bi-temporal interpretation. Deterministic routing and GIS evidence remain authoritative.
 - `OPENAI_API_KEY` — optional, only used for (a) ambiguous query-intent
   classification and (b) natural-language polishing of the grounded answer.

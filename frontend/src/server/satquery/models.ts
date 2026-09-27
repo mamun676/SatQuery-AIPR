@@ -256,20 +256,128 @@ export async function predictTerraMind(imagePath: string) {
   };
 }
 
-export const CROMA: ModelWrapper = {
-  name: "CROMA",
-  role: "optical-SAR joint representation / fusion backbone",
+export const TerraMindOpticalSar: ModelWrapper = {
+  name: "TerraMind-v1-base",
+  role: "native optical + Sentinel-1 GRD multimodal LULC inference",
   async load() {},
   async healthCheck() {
-    if (process.env.CROMA_ENDPOINT) {
-      return { available: true };
+    const endpoint = process.env.TERRAMIND_ENDPOINT?.replace(/\/+$/, "");
+    if (!endpoint) return unavailableWeights("TerraMind-v1-base");
+    try {
+      const response = await requestRemote(`${endpoint}/health`, {
+        timeoutMs: 30_000,
+      });
+      if (response.status < 200 || response.status >= 300) {
+        return {
+          available: false,
+          reason: `TerraMind health returned HTTP ${response.status}.`,
+        };
+      }
+      const data = JSON.parse(response.body.toString("utf8")) as {
+        status?: string;
+        device?: string;
+        optical_sar_ready?: boolean;
+        input_modalities?: string[];
+      };
+      const modalities = new Set(data.input_modalities ?? []);
+      if (
+        data.status === "ok" &&
+        data.device === "cuda" &&
+        data.optical_sar_ready === true &&
+        modalities.has("untok_sen2rgb@224") &&
+        modalities.has("untok_sen1grd@224")
+      ) {
+        return { available: true };
+      }
+      return {
+        available: false,
+        reason:
+          "TerraMind is reachable but its native Optical+Sentinel-1 GRD endpoint is not ready.",
+      };
+    } catch (error) {
+      return {
+        available: false,
+        reason: `TerraMind endpoint unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      };
     }
-    return unavailableWeights("CROMA");
   },
   metadata() {
-    return { modality: "optical+SAR", output: "joint embedding" };
+    return {
+      model: "TerraMind-v1-base",
+      inputModalities: ["untok_sen2rgb@224", "untok_sen1grd@224"],
+      sarBands: ["VV", "VH"],
+      outputModality: "tok_lulc@224",
+      inference: "remote EC2 NVIDIA A10G",
+      endpoint: process.env.TERRAMIND_ENDPOINT ?? null,
+    };
   },
 };
+
+export async function predictTerraMindOpticalSar(
+  opticalPath: string,
+  sarPath: string,
+) {
+  const endpoint = process.env.TERRAMIND_ENDPOINT?.replace(/\/+$/, "");
+  if (!endpoint) throw new Error("TERRAMIND_ENDPOINT is not configured.");
+  const [optical, sar] = await Promise.all([
+    readFile(opticalPath),
+    readFile(sarPath),
+  ]);
+  const body = Buffer.from(
+    JSON.stringify({
+      optical_base64: optical.toString("base64"),
+      optical_filename: opticalPath.split("/").pop() ?? "optical-image",
+      sar_base64: sar.toString("base64"),
+      sar_filename: sarPath.split("/").pop() ?? "sentinel1-grd-vv-vh.tif",
+    }),
+  );
+  const response = await requestRemote(`${endpoint}/predict-optical-sar`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+    timeoutMs: 10 * 60 * 1000,
+  });
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(
+      `TerraMind Optical+SAR prediction failed with HTTP ${response.status}: ${response.body.toString("utf8")}`,
+    );
+  }
+  const data = JSON.parse(response.body.toString("utf8")) as {
+    model?: string;
+    input_modalities?: string[];
+    input_shapes?: { optical?: number[]; sar?: number[] };
+    output_shape?: number[];
+    output_min?: number;
+    output_max?: number;
+    output_mean?: number;
+    class_histogram?: Record<string, number>;
+    mask_is_provisional?: boolean;
+    mask_png_base64?: string;
+    fusion?: string;
+    optical?: Record<string, unknown>;
+    sar?: Record<string, unknown>;
+  };
+  if (!data.mask_png_base64) {
+    throw new Error(
+      "TerraMind Optical+SAR response did not include a LULC mask.",
+    );
+  }
+  return {
+    model: data.model ?? "TerraMind-v1-base",
+    inputModalities: data.input_modalities ?? [],
+    inputShapes: data.input_shapes ?? {},
+    outputShape: data.output_shape ?? [],
+    outputMin: data.output_min ?? null,
+    outputMax: data.output_max ?? null,
+    outputMean: data.output_mean ?? null,
+    classHistogram: data.class_histogram ?? {},
+    maskIsProvisional: data.mask_is_provisional ?? true,
+    fusion: data.fusion ?? "native TerraMind multimodal attention",
+    opticalMetadata: data.optical ?? {},
+    sarMetadata: data.sar ?? {},
+    maskPng: Buffer.from(data.mask_png_base64, "base64"),
+  };
+}
 
 function qwenManagerEndpoint(): string | null {
   const endpoint =
@@ -449,7 +557,7 @@ export const PixelChangeDetector: ModelWrapper = {
 export const ALL_MODELS: ModelWrapper[] = [
   RSCoVLM,
   TerraMind,
-  CROMA,
+  TerraMindOpticalSar,
   Qwen3VL,
   RuleBasedFusion,
   PixelChangeDetector,

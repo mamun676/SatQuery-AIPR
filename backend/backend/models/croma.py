@@ -1,38 +1,68 @@
-"""CROMA model wrapper (backend/models/croma.py) — optical-SAR joint
-representation / fusion backbone.
+"""TerraMind Optical+SAR model wrapper for the reference Python backend.
 
-INTEGRATION BOUNDARY: requires CROMA pretrained weights + a GPU inference
-server. Falls back to `rule_based_fusion` in tools/optical_sar_tool.py when
-unavailable (see registry.py fallback policy).
+The deployed Next.js application calls the same local endpoint from its
+TypeScript wrapper. Quantitative GIS evidence remains deterministic.
 """
 from __future__ import annotations
 
+from base64 import b64encode
 import os
+from pathlib import Path
 
 
-class CROMAWrapper:
-    name = "CROMA"
-    role = "optical-SAR joint representation / fusion backbone"
+class TerraMindOpticalSarWrapper:
+    name = "TerraMind-v1-base"
+    role = "native optical + Sentinel-1 GRD multimodal LULC inference"
 
     def __init__(self) -> None:
-        self.endpoint = os.environ.get("CROMA_ENDPOINT")
+        self.endpoint = os.environ.get("TERRAMIND_ENDPOINT")
 
     def load(self) -> None:
         return None
 
     def health_check(self) -> dict:
-        if self.endpoint:
-            return {"available": True}
-        return {"available": False, "reason": "CROMA weights/endpoint not provisioned (set CROMA_ENDPOINT)."}
+        if not self.endpoint:
+            return {"available": False, "reason": "TERRAMIND_ENDPOINT is not configured."}
+        import requests  # type: ignore
+
+        try:
+            response = requests.get(self.endpoint.rstrip("/") + "/health", timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            modalities = set(data.get("input_modalities") or [])
+            available = (
+                data.get("status") == "ok"
+                and data.get("device") == "cuda"
+                and data.get("optical_sar_ready") is True
+                and {"untok_sen2rgb@224", "untok_sen1grd@224"}.issubset(modalities)
+            )
+            return {"available": available, "reason": None if available else "Optical+SAR adapters are not ready."}
+        except Exception as error:
+            return {"available": False, "reason": str(error)}
 
     def predict(self, optical_path: str, sar_path: str) -> dict:
         if not self.endpoint:
-            raise RuntimeError("CROMA endpoint not configured; use rule_based_fusion instead.")
+            raise RuntimeError("TERRAMIND_ENDPOINT is not configured.")
         import requests  # type: ignore
 
-        resp = requests.post(self.endpoint, json={"optical_path": optical_path, "sar_path": sar_path}, timeout=60)
-        resp.raise_for_status()
-        return resp.json()
+        optical = Path(optical_path).read_bytes()
+        sar = Path(sar_path).read_bytes()
+        response = requests.post(
+            self.endpoint.rstrip("/") + "/predict-optical-sar",
+            json={
+                "optical_base64": b64encode(optical).decode("ascii"),
+                "optical_filename": Path(optical_path).name,
+                "sar_base64": b64encode(sar).decode("ascii"),
+                "sar_filename": Path(sar_path).name,
+            },
+            timeout=600,
+        )
+        response.raise_for_status()
+        return response.json()
 
     def metadata(self) -> dict:
-        return {"modality": "optical+SAR", "output": "joint embedding"}
+        return {
+            "input_modalities": ["untok_sen2rgb@224", "untok_sen1grd@224"],
+            "sar_bands": ["VV", "VH"],
+            "output_modality": "tok_lulc@224",
+        }
