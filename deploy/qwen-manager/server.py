@@ -253,8 +253,28 @@ def plan(payload: dict[str, Any]) -> dict[str, Any]:
     env["CUDA_VISIBLE_DEVICES"] = ""
     result = _run(
         [
-            LLAMA_CLI, "-m", PLANNER_MODEL, "-ngl", "0", "-t", "4", "-c", "2048",
-            "-n", "160", "--temp", "0", "-p", _planner_prompt(query.strip(), mode),
+            LLAMA_CLI,
+            "-m",
+            PLANNER_MODEL,
+            "-ngl",
+            "0",
+            "-t",
+            "4",
+            "-c",
+            "2048",
+            "-n",
+            "96",
+            "--temp",
+            "0",
+            "--reasoning",
+            "off",
+            "--reasoning-budget",
+            "0",
+            "-st",
+            "--simple-io",
+            "--no-display-prompt",
+            "-p",
+            _planner_prompt(query.strip(), mode),
         ],
         CPU_TIMEOUT,
         env,
@@ -263,7 +283,8 @@ def plan(payload: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError(f"Qwen planner failed: {result.stderr[-2000:]}")
     raw = _extract_json(result.stdout)
     task, route_enforced = _enforce_route(raw.get("task"), query, mode)
-    target = raw.get("target") if isinstance(raw.get("target"), str) else _target_from_query(query)
+    raw_target = raw.get("target") if isinstance(raw.get("target"), str) else None
+    target = _target_from_query(query) or raw_target
     return {
         "task": task,
         "target": target,
@@ -285,24 +306,46 @@ def synthesize(payload: dict[str, Any]) -> dict[str, Any]:
     _require_file(PLANNER_MODEL, "Qwen3-4B model")
     prompt = (
         "Rewrite the grounded remote-sensing answer as one clear paragraph. Do not add, remove, "
-        "or change any number, coordinate, unit, or fact. Return only the rewritten paragraph.\n"
+        "or change any number, coordinate, unit, or fact. Return only JSON as {\"text\":\"the rewritten paragraph\"}.\n"
         f"Question: {query}\nFacts: {json.dumps(facts, ensure_ascii=False)}\n"
         f"Grounded draft: {grounded_answer}"
     )
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = ""
     result = _run(
-        [LLAMA_CLI, "-m", PLANNER_MODEL, "-ngl", "0", "-t", "4", "-c", "4096", "-n", "320", "--temp", "0.1", "-p", prompt],
+        [
+            LLAMA_CLI,
+            "-m",
+            PLANNER_MODEL,
+            "-ngl",
+            "0",
+            "-t",
+            "4",
+            "-c",
+            "4096",
+            "-n",
+            "320",
+            "--temp",
+            "0.1",
+            "--reasoning",
+            "off",
+            "--reasoning-budget",
+            "0",
+            "-st",
+            "--simple-io",
+            "--no-display-prompt",
+            "-p",
+            prompt,
+        ],
         CPU_TIMEOUT,
         env,
     )
     if result.returncode != 0:
         raise RuntimeError(f"Qwen synthesis failed: {result.stderr[-2000:]}")
-    text = result.stdout.strip()
-    for marker in ("<|im_end|>", "<|endoftext|>"):
-        text = text.replace(marker, "")
-    if not text:
-        raise RuntimeError("Qwen synthesis returned an empty answer.")
+    parsed = _extract_json(result.stdout)
+    text = parsed.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise RuntimeError("Qwen synthesis returned invalid JSON or an empty answer.")
     return {"text": text.strip(), "model": "Qwen3-4B-Q4_K_M"}
 
 
