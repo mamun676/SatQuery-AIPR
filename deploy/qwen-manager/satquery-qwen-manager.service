@@ -1,0 +1,23 @@
+[Unit]
+Description=SatQuery local Qwen model manager
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=-/etc/satquery/qwen-manager.env
+ExecStart=/usr/bin/python3 /opt/satquery/qwen-manager/server.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=full
+ReadWritePaths=/run
+
+[Install]
+WantedBy=multi-user.target
