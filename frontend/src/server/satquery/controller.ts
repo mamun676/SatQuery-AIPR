@@ -7,7 +7,7 @@ import { classifyIntent } from "./queryUnderstanding";
 import { resolveRegistry, validateParameters } from "./registry";
 import { readRaster, type RasterData } from "./gis";
 import { runCaptionTool, runChangeTool, runGroundingTool, runOpticalSarTool, runVqaTool, type ToolOutput } from "./tools";
-import { predictRsCoVLM, RSCoVLM } from "./models";
+import { predictRsCoVLM, predictTerraMind, RSCoVLM, TerraMind } from "./models";
 import { TraceLogger } from "./trace";
 import type { InputMode, ModelUsed, QueryIntent, UploadedFileMeta } from "./types";
 
@@ -134,6 +134,65 @@ export async function orchestrate(input: ControllerInput, trace: TraceLogger): P
     } catch (error) {
       usedFallback = true;
       trace.log("fallback", `Remote RSCoVLM prediction failed; retaining deterministic evidence answer: ${error instanceof Error ? error.message : String(error)}`, {});
+    }
+  }
+
+  // TerraMind complements RSCoVLM on every single-image workflow. RSCoVLM
+  // supplies the language answer while TerraMind contributes a provisional
+  // land-use / land-cover mask. An auxiliary TerraMind failure must not turn
+  // an otherwise successful analysis into a failed job.
+  if (input.mode === "single_image" && input.files.length > 0) {
+    const terraMindHealth = await TerraMind.healthCheck();
+    if (terraMindHealth.available) {
+      try {
+        const remote = await predictTerraMind(input.files[0].storedPath);
+        modelsUsed.push({ name: TerraMind.name, role: TerraMind.role, status: "used" });
+        toolOutput = {
+          ...toolOutput,
+          facts: [
+            ...toolOutput.facts,
+            {
+              fact: "terramind_lulc_mask_generated",
+              value: true,
+              extra: {
+                provisional: remote.maskIsProvisional,
+                output_shape: remote.outputShape,
+              },
+            },
+          ],
+          statistics: {
+            ...toolOutput.statistics,
+            terraMind: {
+              inputShape: remote.inputShape,
+              outputShape: remote.outputShape,
+              outputMin: remote.outputMin,
+              outputMax: remote.outputMax,
+              outputMean: remote.outputMean,
+              maskIsProvisional: remote.maskIsProvisional,
+            },
+          },
+          previewPngs: [
+            ...toolOutput.previewPngs,
+            { name: "terramind_lulc_mask.png", buffer: remote.maskPng },
+          ],
+        };
+        trace.log("execution", `Remote TerraMind prediction completed on EC2 (${remote.model}).`, {
+          outputShape: remote.outputShape,
+          maskIsProvisional: remote.maskIsProvisional,
+        });
+      } catch (error) {
+        const reason = `TerraMind prediction failed: ${error instanceof Error ? error.message : String(error)}`;
+        modelsUsed.push({ name: TerraMind.name, role: TerraMind.role, status: "unavailable", reason });
+        trace.log("auxiliary_model", `${reason}; continuing without the LULC mask.`, {});
+      }
+    } else {
+      modelsUsed.push({
+        name: TerraMind.name,
+        role: TerraMind.role,
+        status: "unavailable",
+        reason: terraMindHealth.reason,
+      });
+      trace.log("auxiliary_model", `TerraMind unavailable: ${terraMindHealth.reason}`, {});
     }
   }
 
