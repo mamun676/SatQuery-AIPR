@@ -359,7 +359,7 @@ export async function synthesizeWithQwen(
 
 export const Qwen3VL: ModelWrapper = {
   name: "Qwen3-VL-8B",
-  role: "bi-temporal change reasoning / language synthesis",
+  role: "bi-temporal visual change reasoning",
   async load() {},
   async healthCheck() {
     const endpoint = qwenManagerEndpoint();

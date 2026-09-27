@@ -349,6 +349,17 @@ def synthesize(payload: dict[str, Any]) -> dict[str, Any]:
     return {"text": text.strip(), "model": "Qwen3-4B-Q4_K_M"}
 
 
+def _change_prompt(prompt: str) -> str:
+    return (
+        "Image 1 is T1 and image 2 is T2. " + prompt + " "
+        "Return only valid JSON with keys summary, major_changes, possible_flood_change, confidence, limitations. "
+        "Do not claim exact ground area; geospatial area and location require valid georeferencing. "
+        "Aligned images may still support pixel-space counts and comparisons from the GIS evidence layer. "
+        "Do not say that all quantitative analysis is impossible solely because georeferencing is absent. "
+        "If the images are not pixel-aligned or do not depict the same scene, say so and do not invent changes."
+    )
+
+
 def change(payload: dict[str, Any]) -> dict[str, Any]:
     t1 = _validate_image_path(payload.get("t1_path"))
     t2 = _validate_image_path(payload.get("t2_path"))
@@ -363,12 +374,7 @@ def change(payload: dict[str, Any]) -> dict[str, Any]:
     _require_file(VL_MODEL, "Qwen3-VL model")
     _require_file(VL_MMPROJ, "Qwen3-VL projector")
 
-    qwen_prompt = (
-        "Image 1 is T1 and image 2 is T2. " + prompt.strip() + " "
-        "Return only valid JSON with keys summary, major_changes, possible_flood_change, confidence, limitations. "
-        "Do not claim exact area; quantitative area and pixel counts are supplied separately by the GIS evidence layer. "
-        "If the images are not spatially comparable, say so and do not invent changes."
-    )
+    qwen_prompt = _change_prompt(prompt.strip())
 
     inference: dict[str, Any] | None = None
     restore: dict[str, Any] | None = None

@@ -55,6 +55,7 @@ export interface QueryIntent {
   task: TaskType;
   target: string | null;
   method: "rule-based" | "llm-assisted";
+  plannerModel?: string | null;
   rawQuery: string;
   coerced: boolean;
   coercionReason: string | null;

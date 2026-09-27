@@ -23,6 +23,12 @@ class ManagerUnitTests(unittest.TestCase):
     def test_flood_target_normalizes_to_water(self):
         self.assertEqual(manager._target_from_query("possible flood-related change"), "water")
 
+    def test_change_prompt_preserves_pixel_space_scope(self):
+        prompt = manager._change_prompt("Compare two aligned scenes.")
+        self.assertIn("pixel-space counts", prompt)
+        self.assertIn("geospatial area and location require valid georeferencing", prompt)
+        self.assertIn("not pixel-aligned", prompt)
+
     def test_image_path_allowlist(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp).resolve()

@@ -140,7 +140,7 @@ export interface LlmIntentClassifier {
   (
     query: string,
     mode: InputMode | null,
-  ): Promise<{ task: string; target: string | null } | null>;
+  ): Promise<{ task: string; target: string | null; model: string } | null>;
 }
 
 /**
@@ -153,7 +153,11 @@ export const llmAssistClassify: LlmIntentClassifier = async (query, mode) => {
     try {
       const planned = await predictQwenPlan(query, mode);
       if (TASK_VOCAB.includes(planned.task as TaskType)) {
-        return { task: planned.task, target: planned.target ?? null };
+        return {
+          task: planned.task,
+          target: planned.target ?? null,
+          model: "Qwen3-4B",
+        };
       }
     } catch {
       // Fall through to deterministic rules (or optional OpenAI) below.
@@ -163,6 +167,7 @@ export const llmAssistClassify: LlmIntentClassifier = async (query, mode) => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   try {
+    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -170,7 +175,7 @@ export const llmAssistClassify: LlmIntentClassifier = async (query, mode) => {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        model,
         temperature: 0,
         response_format: { type: "json_object" },
         messages: [
@@ -191,7 +196,7 @@ export const llmAssistClassify: LlmIntentClassifier = async (query, mode) => {
     if (!content) return null;
     const parsed = JSON.parse(content);
     if (!TASK_VOCAB.includes(parsed.task)) return null;
-    return { task: parsed.task, target: parsed.target ?? null };
+    return { task: parsed.task, target: parsed.target ?? null, model };
   } catch {
     return null;
   }
@@ -208,6 +213,7 @@ export async function classifyIntent(
   let task: TaskType = ruleTask;
   let target = ruleTarget;
   let method: QueryIntent["method"] = "rule-based";
+  let plannerModel: string | null = null;
 
   // The local Qwen planner sees every request, while deterministic mode
   // coercion below remains authoritative. OpenAI is still limited to the
@@ -221,6 +227,7 @@ export async function classifyIntent(
       task = llmResult.task as TaskType;
       target = llmResult.target;
       method = "llm-assisted";
+      plannerModel = llmResult.model;
     }
   }
 
@@ -230,6 +237,7 @@ export async function classifyIntent(
     task: finalTask,
     target,
     method,
+    plannerModel,
     rawQuery: query,
     coerced,
     coercionReason: reason,
