@@ -65,8 +65,33 @@ export async function runAnalysis(jobId: string): Promise<void> {
     const warnings = [...validation.warnings];
 
     trace.log("synthesis", "Synthesizing human-readable answer grounded in evidence", {});
-    const answer = await synthesizeAnswer(job.query, toolOutput.answer, toolOutput.facts, confidence, warnings);
-    trace.log("synthesis", "Synthesis complete", {});
+    const synthesis = await synthesizeAnswer(
+      job.query,
+      toolOutput.answer,
+      toolOutput.facts,
+      confidence,
+      warnings,
+    );
+    const answer = synthesis.answer;
+    if (synthesis.modelUsed) {
+      const existing = modelsUsed.find(
+        (model) => model.name === synthesis.modelUsed?.name && model.status === "used",
+      );
+      if (existing) {
+        if (!existing.role.includes(synthesis.modelUsed.role)) {
+          existing.role = `${existing.role}; ${synthesis.modelUsed.role}`;
+        }
+      } else {
+        modelsUsed.push(synthesis.modelUsed);
+      }
+    }
+    trace.log(
+      "synthesis",
+      synthesis.modelUsed
+        ? `Synthesis complete (${synthesis.modelUsed.name}).`
+        : "Synthesis complete using deterministic grounded wording.",
+      synthesis.modelUsed ? { model: synthesis.modelUsed.name } : {},
+    );
 
     const durationMs = Date.now() - startedAt;
     trace.log("completed", `Analysis completed in ${durationMs}ms`, { usedFallback });

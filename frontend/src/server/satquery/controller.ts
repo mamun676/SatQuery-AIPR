@@ -100,6 +100,13 @@ export async function orchestrate(
   paramWarnings.forEach((w) => trace.log("routing", w, {}));
 
   const modelsUsed: ModelUsed[] = [];
+  if (intent.method === "llm-assisted" && intent.plannerModel) {
+    modelsUsed.push({
+      name: intent.plannerModel,
+      role: "query planning and deterministic route selection",
+      status: "used",
+    });
+  }
   let usedFallback = false;
 
   const primaryHealth = await entry.primary.healthCheck();

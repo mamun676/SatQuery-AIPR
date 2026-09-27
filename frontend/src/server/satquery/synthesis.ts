@@ -6,7 +6,17 @@
 // numeric value that cannot be matched back to the evidence, its output is
 // discarded and the deterministic grounded template is used instead.
 import { synthesizeWithQwen } from "./models";
-import type { ConfidenceBreakdown, EvidenceFact } from "./types";
+import type { ConfidenceBreakdown, EvidenceFact, ModelUsed } from "./types";
+
+interface PolishResult {
+  text: string;
+  modelUsed: ModelUsed;
+}
+
+export interface SynthesisResult {
+  answer: string;
+  modelUsed: ModelUsed | null;
+}
 
 function extractNumbers(text: string): number[] {
   const matches = text.match(/-?\d+(\.\d+)?/g) ?? [];
@@ -31,10 +41,17 @@ async function llmPolish(
   query: string,
   groundedAnswer: string,
   facts: EvidenceFact[],
-): Promise<string | null> {
+): Promise<PolishResult | null> {
   if (process.env.QWEN_MANAGER_ENDPOINT) {
     try {
-      return await synthesizeWithQwen(query, groundedAnswer, facts);
+      return {
+        text: await synthesizeWithQwen(query, groundedAnswer, facts),
+        modelUsed: {
+          name: "Qwen3-4B",
+          role: "grounded answer synthesis",
+          status: "used",
+        },
+      };
     } catch {
       // Preserve the grounded deterministic answer if local synthesis fails.
     }
@@ -43,6 +60,7 @@ async function llmPolish(
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   try {
+    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -50,7 +68,7 @@ async function llmPolish(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        model,
         temperature: 0.2,
         messages: [
           {
@@ -69,7 +87,17 @@ async function llmPolish(
     });
     if (!res.ok) return null;
     const json = await res.json();
-    return json.choices?.[0]?.message?.content ?? null;
+    const text = json.choices?.[0]?.message?.content;
+    return text
+      ? {
+          text,
+          modelUsed: {
+            name: model,
+            role: "grounded answer synthesis",
+            status: "used",
+          },
+        }
+      : null;
   } catch {
     return null;
   }
@@ -81,7 +109,7 @@ export async function synthesizeAnswer(
   facts: EvidenceFact[],
   confidence: ConfidenceBreakdown,
   warnings: string[],
-): Promise<string> {
+): Promise<SynthesisResult> {
   const groundedNumbers = [
     ...extractNumbers(groundedAnswer),
     ...facts.flatMap((f) =>
@@ -92,12 +120,14 @@ export async function synthesizeAnswer(
   ];
 
   let finalAnswer = groundedAnswer;
+  let modelUsed: ModelUsed | null = null;
 
   const polished = await llmPolish(query, groundedAnswer, facts);
   if (polished) {
-    const candidateNumbers = extractNumbers(polished);
+    const candidateNumbers = extractNumbers(polished.text);
     if (numbersAreGrounded(candidateNumbers, groundedNumbers)) {
-      finalAnswer = polished.trim();
+      finalAnswer = polished.text.trim();
+      modelUsed = polished.modelUsed;
     }
     // else: silently keep the deterministic grounded answer.
   }
@@ -106,5 +136,5 @@ export async function synthesizeAnswer(
   if (warnings.length > 0) {
     finalAnswer += ` Note: ${warnings.length} validation warning(s) were recorded during this analysis — see the execution trace for details.`;
   }
-  return finalAnswer;
+  return { answer: finalAnswer, modelUsed };
 }
