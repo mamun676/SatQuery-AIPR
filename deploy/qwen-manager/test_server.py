@@ -20,6 +20,9 @@ class ManagerUnitTests(unittest.TestCase):
         self.assertEqual(manager._enforce_route("caption", "water", "optical_sar"), ("optical_sar", True))
         self.assertEqual(manager._enforce_route("change_vqa", "change", "single_image"), ("vqa", True))
 
+    def test_flood_target_normalizes_to_water(self):
+        self.assertEqual(manager._target_from_query("possible flood-related change"), "water")
+
     def test_image_path_allowlist(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp).resolve()

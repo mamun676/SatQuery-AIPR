@@ -5,8 +5,8 @@ Local-only orchestration service for one-EC2/one-A10G operation.
 ## Endpoints
 
 - `GET /health` and `GET /v1/status`
-- `POST /v1/plan` — Qwen3-4B CPU planner with deterministic route enforcement
-- `POST /v1/synthesize` — Qwen3-4B CPU wording pass; the Next.js number-grounding guard remains authoritative
+- `POST /v1/plan` — Qwen3-4B CPU planner with deterministic route enforcement, reasoning disabled, and single-turn subprocess I/O
+- `POST /v1/synthesize` — Qwen3-4B CPU JSON wording pass in single-turn mode; the Next.js number-grounding guard remains authoritative
 - `POST /v1/change` — queued Qwen3-VL GPU inference over T1/T2, followed by unconditional RSCoVLM/TerraMind restoration
 
 The service binds only to `127.0.0.1:8003`. Do not add a public security-group rule.
