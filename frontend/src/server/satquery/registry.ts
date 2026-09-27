@@ -3,7 +3,15 @@
 // equivalent below is the source of truth actually consulted by the Next.js
 // runtime; keep the two in sync when changing routing policy.
 import type { TaskType } from "./types";
-import { CROMA, PixelChangeDetector, Qwen3VL, RSCoVLM, RuleBasedFusion, RuleBasedRasterAnalyzer, type ModelWrapper } from "./models";
+import {
+  PixelChangeDetector,
+  Qwen3VL,
+  RSCoVLM,
+  RuleBasedFusion,
+  RuleBasedRasterAnalyzer,
+  TerraMindOpticalSar,
+  type ModelWrapper,
+} from "./models";
 
 export interface RegistryEntry {
   task: TaskType;
@@ -45,7 +53,7 @@ const REGISTRY: Record<TaskType, RegistryEntry> = {
   optical_sar: {
     task: "optical_sar",
     tool: "optical_sar_tool",
-    primary: CROMA,
+    primary: TerraMindOpticalSar,
     fallback: RuleBasedFusion,
     allowedParameters: ["target"],
   },
@@ -59,12 +67,17 @@ export function resolveRegistry(task: TaskType): RegistryEntry {
   return entry;
 }
 
-export function validateParameters(task: TaskType, parameters: Record<string, unknown>): string[] {
+export function validateParameters(
+  task: TaskType,
+  parameters: Record<string, unknown>,
+): string[] {
   const entry = resolveRegistry(task);
   const warnings: string[] = [];
   for (const key of Object.keys(parameters)) {
     if (!entry.allowedParameters.includes(key)) {
-      warnings.push(`Parameter "${key}" is not recognized for task "${task}" and was ignored.`);
+      warnings.push(
+        `Parameter "${key}" is not recognized for task "${task}" and was ignored.`,
+      );
     }
   }
   return warnings;

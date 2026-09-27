@@ -28,6 +28,6 @@ change_vqa:
 
 optical_sar:
   tool: optical_sar_tool
-  primary: croma_rscovlm_fusion
+  primary: terramind_v1_optical_sar
   fallback: rule_based_fusion
   allowed_parameters: [target]
